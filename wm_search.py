@@ -3,6 +3,9 @@ import json
 from psychopy import visual, gui, event, core
 import random
 
+TESTING = False
+if not TESTING:
+    from Plexon import PlexClient
 
 class Stimuli:
 
@@ -112,6 +115,14 @@ class Stimuli:
                                            alignVert='center', units='height',
                                            pos=(0.6, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
+        if not TESTING:
+            self.plexon = PlexClient.PlexClient()
+            self.plexon.InitClient()
+            # self.plexon.MarkEvent(channel) to mark events
+            # channel 1: cue presentation
+            # channel 2: search presentation
+            # channel 3: WM presentation
+            # channel 4: Subject response
 
     def draw_fixation(self):
         self.fixation.draw()
@@ -127,6 +138,8 @@ class Stimuli:
                         wrapWidth=2).draw()
         self.cue.lineColor = self.colors[color]
         self.cue.draw()
+        if not TESTING:
+            self.plexon.MarkEvent(1)
         self.win.flip()
         core.wait(self.timing['cue'])
         self.win.flip()
@@ -153,6 +166,8 @@ class Stimuli:
             self.line[('top', 'straight')].draw()
         self.line[(trial['target_pos'], trial['target_type'])].draw()
 
+        if not TESTING:
+            self.plexon.MarkEvent(2)
         self.win.flip()
         timer = core.MonotonicClock()
         key = event.waitKeys(
@@ -160,8 +175,12 @@ class Stimuli:
         if key is None:
             pass
         elif key[0] == 'escape':
+            if not TESTING:
+                self.plexon.CloseClient()
             core.quit()
         else:
+            if not TESTING:
+                self.plexon.MarkEvent(4)
             return (self.search_keymap[key[0]], timer.getTime())
         self.win.flip()
         key = event.waitKeys(
@@ -169,13 +188,19 @@ class Stimuli:
         if key is None:
             return ('timeout', timer.getTime())
         elif key[0] == 'escape':
+            if not TESTING:
+                self.plexon.CloseClient()
             core.quit()
         else:
+            if not TESTING:
+                self.plexon.MarkEvent(4)
             return (self.search_keymap[key[0]], timer.getTime())
 
     def do_memory(self):
         for stim in self.memory:
             stim.draw()
+        if not TESTING:
+            self.plexon.MarkEvent(3)
         self.win.flip()
         timer = core.MonotonicClock()
         key = event.waitKeys(
@@ -184,35 +209,39 @@ class Stimuli:
         if key is None:
             return ('timeout', timer.getTime())
         elif key[0] == 'escape':
+            if not TESTING:
+                self.plexon.CloseClient()
             core.quit()
         else:
+            if not TESTING:
+                self.plexon.MarkEvent(4)
             return (self.mem_keymap[key[0]], timer.getTime())
 
+    def text_keypress(self, text):
+        display_text = visual.TextStim(self.win, text=text,
+                                       font='Helvetica', alignHoriz='center',
+                                       alignVert='center', units='norm',
+                                       pos=(0, 0), height=0.1,
+                                       color=[255, 255, 255], colorSpace='rgb255',
+                                       wrapWidth=2)
+        display_text.draw()
+        self.win.flip()
+        key = event.waitKeys()
+        if key[0] == 'escape':
+            if not TESTING:
+                self.plexon.CloseClient()
+            core.quit()
+        self.win.flip()
 
-def text_keypress(win, text):
-    display_text = visual.TextStim(win, text=text,
-                                   font='Helvetica', alignHoriz='center',
-                                   alignVert='center', units='norm',
-                                   pos=(0, 0), height=0.1,
-                                   color=[255, 255, 255], colorSpace='rgb255',
-                                   wrapWidth=2)
-    display_text.draw()
-    win.flip()
-    key = event.waitKeys()
-    if key[0] == 'escape':
-        core.quit()
-    win.flip()
-
-
-def text(win, text):
-    display_text = visual.TextStim(win, text=text,
-                                   font='Helvetica', alignHoriz='center',
-                                   alignVert='center', units='norm',
-                                   pos=(0, 0), height=0.1,
-                                   color=[255, 255, 255], colorSpace='rgb255',
-                                   wrapWidth=2)
-    display_text.draw()
-    win.flip()
+    def text(self, text):
+        display_text = visual.TextStim(self.win, text=text,
+                                       font='Helvetica', alignHoriz='center',
+                                       alignVert='center', units='norm',
+                                       pos=(0, 0), height=0.1,
+                                       color=[255, 255, 255], colorSpace='rgb255',
+                                       wrapWidth=2)
+        display_text.draw()
+        self.win.flip()
 
 
 def get_settings():
@@ -251,14 +280,14 @@ def run():
               'yellow': (251, 189, 18)}
     stim = Stimuli(win, timing, colors)
 
-    text_keypress(win, 'You will be presented with a circle which you will ' +
+    stim.text_keypress('You will be presented with a circle which you will ' +
                        'need to remember the color of.\n\n\n'
                        'Hit any key to continue.')
-    text_keypress(win, 'Then you will be presented with a series of ' +
+    stim.text_keypress('Then you will be presented with a series of ' +
                        'searches where you will need to press the key ' +
                        'corresponding to the way the tilted line is tilted.\n\n\n'
                        'Hit any key to continue.')
-    text_keypress(win, 'At the end, you will be asked to pick the color ' +
+    stim.text_keypress('At the end, you will be asked to pick the color ' +
                        'that you were asked to remember out of four ' +
                        'possibilities.\n\n\n'
                        'Hit any key to continue.')
@@ -309,9 +338,9 @@ def run():
             block['trials'][trial_num]['search_correct'] = corr
             if not corr:
                 if resp == 'timeout':
-                    text(win, 'Timeout')
+                    stim.text('Timeout')
                 else:
-                    text(win, 'Incorrect')
+                    stim.text('Incorrect')
             core.wait(timing['intertrial'])
         chosen_col, time = stim.do_memory()
         block_list[block_num]['mem_response'] = chosen_col
@@ -319,19 +348,19 @@ def run():
         corr = (chosen_col == block['cue_color'])
         block_list[block_num]['mem_correct'] = corr
         if corr:
-            text(win, 'Correct!')
+            stim.text('Correct!')
         elif chosen_col == 'timeout':
-            text(win, 'Timeout')
+            stim.text('Timeout')
         else:
-            text(win, 'Incorrect')
+            stim.text('Incorrect')
         core.wait(timing['intertrial'])
         with open(expname + '_' + sid + '.json', 'a') as f:
             f.write(json.dumps(block))
             f.write('\n')
         if block_num < len(block_list) - 1:
-            text_keypress(win, 'Press any button when ready to continue.')
+            stim.text_keypress('Press any button when ready to continue.')
         else:
-            text_keypress(win, 'Congratulations! You have finished.')
+            stim.text_keypress('Congratulations! You have finished.')
 
 if __name__ == '__main__':
     run()
