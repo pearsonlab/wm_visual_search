@@ -60,7 +60,7 @@ class Stimuli:
                                                      lineColorSpace='rgb255')
 
         self.mem_keymap = {
-            '1': 'red', '2': 'green', '3': 'blue', '4': 'yellow'}
+            '1': 'blue', '2': 'yellow', '3': 'green', '4': 'red'}
         self.memory = []
         self.memory.append(visual.TextStim(self.win, text='Which color do you remember?',
                                            font='Helvetica', alignHoriz='center',
@@ -156,14 +156,20 @@ class Stimuli:
         self.win.flip()
         timer = core.MonotonicClock()
         key = event.waitKeys(
-            maxWait=self.timing['search'], keyList=self.search_keymap.keys())
-        if key is not None:
+            maxWait=self.timing['search'], keyList=self.search_keymap.keys() + ['escape'])
+        if key is None:
+            pass
+        elif key[0] == 'escape':
+            core.quit()
+        else:
             return (self.search_keymap[key[0]], timer.getTime())
         self.win.flip()
         key = event.waitKeys(
-            maxWait=self.timing['blank'], keyList=self.search_keymap.keys())
+            maxWait=self.timing['blank'], keyList=self.search_keymap.keys() + ['escape'])
         if key is None:
             return ('timeout', timer.getTime())
+        elif key[0] == 'escape':
+            core.quit()
         else:
             return (self.search_keymap[key[0]], timer.getTime())
 
@@ -173,10 +179,12 @@ class Stimuli:
         self.win.flip()
         timer = core.MonotonicClock()
         key = event.waitKeys(
-            maxWait=self.timing['WM'], keyList=self.mem_keymap.keys())
+            maxWait=self.timing['WM'], keyList=self.mem_keymap.keys() + ['escape'])
         self.win.flip()
         if key is None:
             return ('timeout', timer.getTime())
+        elif key[0] == 'escape':
+            core.quit()
         else:
             return (self.mem_keymap[key[0]], timer.getTime())
 
@@ -190,7 +198,9 @@ def text_keypress(win, text):
                                    wrapWidth=2)
     display_text.draw()
     win.flip()
-    event.waitKeys()
+    key = event.waitKeys()
+    if key[0] == 'escape':
+        core.quit()
     win.flip()
 
 
@@ -314,14 +324,13 @@ def run():
         else:
             text(win, 'Incorrect')
         core.wait(timing['intertrial'])
-
+        with open(expname + '_' + sid + '.json', 'a') as f:
+            f.write(json.dumps(block))
+            f.write('\n')
         if block_num < len(block_list) - 1:
             text_keypress(win, 'Press any button when ready to continue.')
         else:
             text_keypress(win, 'Congratulations! You have finished.')
-
-    json.dump(block_list, open(expname + '_' + sid, 'w'))
-    ### TODO: write after every block and allow for escape
 
 if __name__ == '__main__':
     run()
