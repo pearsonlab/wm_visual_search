@@ -220,6 +220,7 @@ def get_settings():
     dlg.addField('Experiment Name:', 'WM_Search')
     dlg.addField('Subject ID:', '0000')
     dlg.addField('Number of blocks:', 10)
+    dlg.addField('Speed Factor', 1.0)
     dlg.show()
     if dlg.OK:
         return dlg.data
@@ -234,16 +235,16 @@ def get_window():
 
 
 def run():
-    (expname, sid, numblocks) = get_settings()
+    (expname, sid, numblocks, speed) = get_settings()
     win = get_window()
     win.flip()
     timing = {'fixation': 0.5,
               'cue': 1.0,
               'delay': 2,
               'search': 0.3,
-              'WM': 3,
-              'blank': 1.2,
-              'intertrial': 0.5}
+              'WM': 3 / speed,
+              'blank': 1.2 / speed,
+              'intertrial': 0.5 / speed}
     colors = {'red': (227, 2, 24),
               'green': (95, 180, 46),
               'blue': (48, 62, 152),
