@@ -301,6 +301,7 @@ def run():
     # construct blocks
     for block_num in range(numblocks):
         block = {}
+        block['speed_factor'] = speed
         block['block_num'] = block_num
         block['cue_color'] = random.choice(colors.keys())
         random.shuffle(trial_types)
