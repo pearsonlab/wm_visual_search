@@ -3,7 +3,7 @@ import json
 from psychopy import visual, gui, event, core
 import random
 
-TESTING = False
+TESTING = True
 if not TESTING:
     from Plexon import PlexClient
 
@@ -74,46 +74,46 @@ class Stimuli:
         self.memory.append(visual.Circle(self.win, units='height', radius=0.1,
                                          fillColorSpace='rgb255',
                                          lineColorSpace='rgb255',
-                                         fillColor=(0, 0, 0), pos=(-0.6, 0),
+                                         fillColor=(0, 0, 0), pos=(-0.45, 0),
                                          lineWidth=15,
                                          lineColor=self.colors[self.mem_keymap['1']]))
         self.memory.append(visual.Circle(self.win, units='height', radius=0.1,
                                          fillColorSpace='rgb255',
                                          lineColorSpace='rgb255',
-                                         fillColor=(0, 0, 0), pos=(-0.2, 0),
+                                         fillColor=(0, 0, 0), pos=(-0.15, 0),
                                          lineWidth=15,
                                          lineColor=self.colors[self.mem_keymap['2']]))
         self.memory.append(visual.Circle(self.win, units='height', radius=0.1,
                                          fillColorSpace='rgb255',
                                          lineColorSpace='rgb255',
-                                         fillColor=(0, 0, 0), pos=(0.2, 0),
+                                         fillColor=(0, 0, 0), pos=(0.15, 0),
                                          lineWidth=15,
                                          lineColor=self.colors[self.mem_keymap['3']]))
         self.memory.append(visual.Circle(self.win, units='height', radius=0.1,
                                          fillColorSpace='rgb255',
                                          lineColorSpace='rgb255',
-                                         fillColor=(0, 0, 0), pos=(0.6, 0),
+                                         fillColor=(0, 0, 0), pos=(0.45, 0),
                                          lineWidth=15,
                                          lineColor=self.colors[self.mem_keymap['4']]))
         self.memory.append(visual.TextStim(self.win, text='1',
                                            font='Helvetica', alignHoriz='center',
                                            alignVert='center', units='height',
-                                           pos=(-0.6, 0), height=0.1,
+                                           pos=(-0.45, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         self.memory.append(visual.TextStim(self.win, text='2',
                                            font='Helvetica', alignHoriz='center',
                                            alignVert='center', units='height',
-                                           pos=(-0.2, 0), height=0.1,
+                                           pos=(-0.15, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         self.memory.append(visual.TextStim(self.win, text='3',
                                            font='Helvetica', alignHoriz='center',
                                            alignVert='center', units='height',
-                                           pos=(0.2, 0), height=0.1,
+                                           pos=(0.15, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         self.memory.append(visual.TextStim(self.win, text='4',
                                            font='Helvetica', alignHoriz='center',
                                            alignVert='center', units='height',
-                                           pos=(0.6, 0), height=0.1,
+                                           pos=(0.45, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         if not TESTING:
             self.plexon = PlexClient.PlexClient()
@@ -259,7 +259,7 @@ def get_settings():
 
 def get_window():
     return visual.Window(
-        size=(1920, 1080), monitor="testMonitor", units="pix", screen=0,
+        winType='pyglet', monitor="testMonitor", units="pix", screen=1,
         fullscr=True, colorSpace='rgb255', color=(0, 0, 0))
 
 
