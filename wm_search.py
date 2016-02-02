@@ -4,7 +4,6 @@ from psychopy import visual, gui, event, core
 import random
 
 TESTING = False
-USE_PLEX = False
 if not TESTING:
     from Plexon import PlexClient
     from makepulse import makepulse
@@ -119,23 +118,19 @@ class Stimuli:
                                            pos=(0.45, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         if not TESTING:
-#            try:
-#                self.plexon = PlexClient.PlexClient()
-#                self.plexon.InitClient()
-#                # self.plexon.MarkEvent(channel) to mark events
-#                # channel 1: cue presentation
-#                # channel 2: search presentation
-#                # channel 3: WM presentation
-#                # channel 4: Subject response
-#            except:
-#                print "Using NIDAQ"
-#                self.plexon = None
-            if USE_PLEX:
+            try:
                 self.plexon = PlexClient.PlexClient()
                 self.plexon.InitClient()
-            else:
-                self.plexon = None
+                if not plexon.IsSortClientRunning():
+                    raise()
+                # self.mark_event(channel) to mark events
+                # channel 1: cue presentation
+                # channel 2: search presentation
+                # channel 3: WM presentation
+                # channel 4: Subject response
+            except:
                 print "Using NIDAQ"
+                self.plexon = None
     
     def mark_event(self, channel):
         if self.plexon is not None:
