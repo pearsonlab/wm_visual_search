@@ -201,8 +201,8 @@ class Stimuli:
         else:
             if not TESTING:
                 self.mark_event(4)
-            self.win.flip()
             resp_time = core.getTime()
+            self.win.flip()
             return (self.search_keymap[key[0]], search_start, resp_time, resp_time)
         off_time = core.getTime()
         self.win.flip()
@@ -224,8 +224,8 @@ class Stimuli:
             stim.draw()
         if not TESTING:
             self.mark_event(3)
-        self.win.flip()
         start_time = core.getTime()
+        self.win.flip()
         key = event.waitKeys(
             maxWait=self.timing['WM'], keyList=self.mem_keymap.keys() + ['escape'])
         self.win.flip()
