@@ -141,7 +141,6 @@ class Stimuli:
         if self.plexon is not None:
             self.plexon.MarkEvent(channel)
         elif channel == 2 or channel == 3:
-            print "channel: %i" % channel
             makepulse()
 
     def draw_fixation(self):
