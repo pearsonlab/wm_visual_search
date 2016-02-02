@@ -3,9 +3,12 @@ import json
 from psychopy import visual, gui, event, core
 import random
 
-TESTING = True
+TESTING = False
+USE_PLEX = False
 if not TESTING:
     from Plexon import PlexClient
+    from makepulse import makepulse
+    
 
 class Stimuli:
 
@@ -116,13 +119,30 @@ class Stimuli:
                                            pos=(0.45, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         if not TESTING:
-            self.plexon = PlexClient.PlexClient()
-            self.plexon.InitClient()
-            # self.plexon.MarkEvent(channel) to mark events
-            # channel 1: cue presentation
-            # channel 2: search presentation
-            # channel 3: WM presentation
-            # channel 4: Subject response
+#            try:
+#                self.plexon = PlexClient.PlexClient()
+#                self.plexon.InitClient()
+#                # self.plexon.MarkEvent(channel) to mark events
+#                # channel 1: cue presentation
+#                # channel 2: search presentation
+#                # channel 3: WM presentation
+#                # channel 4: Subject response
+#            except:
+#                print "Using NIDAQ"
+#                self.plexon = None
+            if USE_PLEX:
+                self.plexon = PlexClient.PlexClient()
+                self.plexon.InitClient()
+            else:
+                self.plexon = None
+                print "Using NIDAQ"
+    
+    def mark_event(self, channel):
+        if self.plexon is not None:
+            self.plexon.MarkEvent(channel)
+        elif channel == 2 or channel == 3:
+            print "channel: %i" % channel
+            makepulse()
 
     def draw_fixation(self):
         self.fixation.draw()
@@ -139,7 +159,7 @@ class Stimuli:
         self.cue.lineColor = self.colors[color]
         self.cue.draw()
         if not TESTING:
-            self.plexon.MarkEvent(1)
+            self.mark_event(1)
         self.win.flip()
         core.wait(self.timing['cue'])
         self.win.flip()
@@ -167,55 +187,58 @@ class Stimuli:
         self.line[(trial['target_pos'], trial['target_type'])].draw()
 
         if not TESTING:
-            self.plexon.MarkEvent(2)
+            self.mark_event(2)
+        search_start = core.getTime()
         self.win.flip()
-        timer = core.MonotonicClock()
         key = event.waitKeys(
             maxWait=self.timing['search'], keyList=self.search_keymap.keys() + ['escape'])
         if key is None:
             pass
         elif key[0] == 'escape':
-            if not TESTING:
+            if not TESTING and self.plexon is not None:
                 self.plexon.CloseClient()
             core.quit()
         else:
             if not TESTING:
-                self.plexon.MarkEvent(4)
-            return (self.search_keymap[key[0]], timer.getTime())
+                self.mark_event(4)
+            self.win.flip()
+            resp_time = core.getTime()
+            return (self.search_keymap[key[0]], search_start, resp_time, resp_time)
+        off_time = core.getTime()
         self.win.flip()
         key = event.waitKeys(
             maxWait=self.timing['blank'], keyList=self.search_keymap.keys() + ['escape'])
         if key is None:
-            return ('timeout', timer.getTime())
+            return ('timeout', search_start, off_time, core.getTime())
         elif key[0] == 'escape':
-            if not TESTING:
+            if not TESTING and self.plexon is not None:
                 self.plexon.CloseClient()
             core.quit()
         else:
             if not TESTING:
-                self.plexon.MarkEvent(4)
-            return (self.search_keymap[key[0]], timer.getTime())
+                self.mark_event(4)
+            return (self.search_keymap[key[0]], search_start, off_time, core.getTime())
 
     def do_memory(self):
         for stim in self.memory:
             stim.draw()
         if not TESTING:
-            self.plexon.MarkEvent(3)
+            self.mark_event(3)
         self.win.flip()
-        timer = core.MonotonicClock()
+        start_time = core.getTime()
         key = event.waitKeys(
             maxWait=self.timing['WM'], keyList=self.mem_keymap.keys() + ['escape'])
         self.win.flip()
         if key is None:
-            return ('timeout', timer.getTime())
+            return ('timeout', start_time, core.getTime())
         elif key[0] == 'escape':
-            if not TESTING:
+            if not TESTING and self.plexon is not None:
                 self.plexon.CloseClient()
             core.quit()
         else:
             if not TESTING:
-                self.plexon.MarkEvent(4)
-            return (self.mem_keymap[key[0]], timer.getTime())
+                self.mark_event(4)
+            return (self.mem_keymap[key[0]], start_time, core.getTime())
 
     def text_keypress(self, text):
         display_text = visual.TextStim(self.win, text=text,
@@ -228,7 +251,7 @@ class Stimuli:
         self.win.flip()
         key = event.waitKeys()
         if key[0] == 'escape':
-            if not TESTING:
+            if not TESTING and self.plexon is not None:
                 self.plexon.CloseClient()
             core.quit()
         self.win.flip()
@@ -272,7 +295,7 @@ def run():
               'delay': 2,
               'search': 0.3,
               'WM': 3 / speed,
-              'blank': 1.2 / speed,
+              'blank': 2 / speed,
               'intertrial': 0.5 / speed}
     colors = {'red': (227, 2, 24),
               'green': (95, 180, 46),
@@ -328,13 +351,19 @@ def run():
     # run trials
     for block_num in range(len(block_list)):
         block = block_list[block_num]
+        block['fixation_on'] = core.getTime()
         stim.draw_fixation()
+        block['fixation_off'] = core.getTime()
+        block['cue_on'] = core.getTime()
         stim.draw_cue(block['cue_color'])
+        block['cue_off'] = core.getTime()
         for trial_num in range(len(block['trials'])):
             trial = block['trials'][trial_num]
-            resp, time = stim.do_search(trial)
+            resp, start_time, off_time, end_time = stim.do_search(trial)
             block['trials'][trial_num]['search_response'] = resp
-            block['trials'][trial_num]['search_response_time'] = time
+            block['trials'][trial_num]['search_start_time'] = start_time
+            block['trials'][trial_num]['search_off_time'] = off_time
+            block['trials'][trial_num]['search_resp_time'] = end_time
             corr = (resp == trial['target_type'])
             block['trials'][trial_num]['search_correct'] = corr
             if not corr:
@@ -343,9 +372,10 @@ def run():
                 else:
                     stim.text('Incorrect')
             core.wait(timing['intertrial'])
-        chosen_col, time = stim.do_memory()
+        chosen_col, start_time, end_time = stim.do_memory()
         block_list[block_num]['mem_response'] = chosen_col
-        block_list[block_num]['mem_response_time'] = time
+        block_list[block_num]['mem_response_start'] = start_time
+        block_list[block_num]['mem_response_resp'] = end_time
         corr = (chosen_col == block['cue_color'])
         block_list[block_num]['mem_correct'] = corr
         if corr:
