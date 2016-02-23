@@ -2,19 +2,24 @@ import sys
 import json
 from psychopy import visual, gui, event, core
 import random
+import numpy as np
 
-TESTING = False
+TESTING = False  # turns off event marking
 if not TESTING:
-    from Plexon import PlexClient
-    from makepulse import makepulse
-    
+    try:
+        from Plexon import PlexClient
+        from makepulse import makepulse
+    except ImportError:
+        print "Plexon and/or NI-DAQ libraries not available on machine."
+
 
 class Stimuli:
 
-    def __init__(self, win, timing, colors):
+    def __init__(self, win, timing, colors, mode):
         self.win = win
         self.timing = timing
         self.colors = colors
+        self.mode = mode
         self.fixation = visual.TextStim(self.win, text='+',
                                         alignHoriz='center',
                                         alignVert='center', units='norm',
@@ -118,121 +123,172 @@ class Stimuli:
                                            pos=(0.45, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         if not TESTING:
-            try:
+            if self.mode == 'Plexon':
                 self.plexon = PlexClient.PlexClient()
                 self.plexon.InitClient()
-                if not plexon.IsSortClientRunning():
-                    raise()
-                # self.mark_event(channel) to mark events
-                # channel 1: cue presentation
-                # channel 2: search presentation
-                # channel 3: WM presentation
-                # channel 4: Subject response
-            except:
-                print "Using NIDAQ"
-                self.plexon = None
-    
+                if not self.plexon.IsSortClientRunning():
+                    raise Exception('Please start Sort Client to use Plexon.')
+                print 'Using Plexon'
+            elif self.mode == 'NI-DAQ':
+                print 'Using NI-DAQ'
+            elif self.mode == 'Photodiode':
+                print 'Using Photodiode'
+            else:
+                raise Exception('Event marking mode unknown')
+            # self.mark_event(channel) to mark events
+            # channel 1: cue presentation
+            # channel 2: search presentation
+            # channel 3: WM presentation
+            # channel 4: Subject response
+
     def mark_event(self, channel):
-        if self.plexon is not None:
-            self.plexon.MarkEvent(channel)
-        elif channel == 2 or channel == 3:
-            makepulse()
+        """
+        Mark event using the predetermined method. Return time it took to run
+        in order to account for non-instantaneous marking on the photodiode.
+        """
+        timer = core.Clock()
+        if not TESTING:
+            if self.mode == 'Plexon':
+                self.plexon.MarkEvent(channel)
+            elif self.mode == 'NI-DAQ':
+                if channel == 2 or channel == 3:
+                    makepulse()
+            elif self.mode == 'Photodiode':
+                self.flicker(channel)
+        return timer.getTime()
+
+    def flicker(self, value):
+        """
+        Send a binary signal (value) to the photodiode by flickering a white
+        circle in the bottom right hand corner.
+        """
+        circle = visual.Circle(self.win, units='norm', radius=0.05,
+                               fillColorSpace='rgb255',
+                               lineColorSpace='rgb255',
+                               fillColor=(0, 0, 0), pos=(0.95, -0.95),
+                               lineColor=(0, 0, 0))
+        value = np.binary_repr(value)
+        # zero pad to 8 bits and add stop and start bits
+        value = '1' + (8 - len(value)) * '0' + value + '1'
+        # draw bits
+        for bit in value:
+            if bit == '1':
+                circle.fillColor = (255, 255, 255)
+                circle.draw()
+            if bit == '0':
+                circle.fillColor = (0, 0, 0)
+                circle.draw()
+            self.win.flip(clearBuffer=False)
+        # clear circle on both buffers
+        circle.fillColor = (0, 0, 0)
+        circle.draw()
+        self.win.flip(clearBuffer=False)
+        circle.draw()
 
     def draw_fixation(self):
         self.fixation.draw()
         self.win.flip()
         core.wait(self.timing['fixation'])
+        self.win.flip()
 
     def draw_cue(self, color):
-        visual.TextStim(self.win, text='Remember this color!',
-                        font='Helvetica', alignHoriz='center',
-                        alignVert='center', units='norm',
-                        pos=(0, 0.5), height=0.1,
-                        color=[255, 255, 255], colorSpace='rgb255',
-                        wrapWidth=2).draw()
+        text = visual.TextStim(self.win, text='Remember this color!',
+                               font='Helvetica', alignHoriz='center',
+                               alignVert='center', units='norm',
+                               pos=(0, 0.5), height=0.1,
+                               color=[255, 255, 255], colorSpace='rgb255',
+                               wrapWidth=2)
         self.cue.lineColor = self.colors[color]
-        self.cue.draw()
-        if not TESTING:
-            self.mark_event(1)
+        draw_objs = [text, self.cue]
+        map(autoDraw_on, draw_objs)
         self.win.flip()
-        core.wait(self.timing['cue'])
+        offset = self.mark_event(1)
+        core.wait(self.timing['cue'] - offset)
+        cue_off = core.getTime()
+        map(autoDraw_off, draw_objs)
+        self.win.flip()
         self.win.flip()
         core.wait(self.timing['delay'])
+        return cue_off
 
     def do_search(self, trial):
         self.draw_fixation()
+        draw_objs = []
         # draw lines and circles
         if trial['target_pos'] == 'top':
             self.search['top'].lineColor = self.colors[
                 trial['search_colors'][0]]
-            self.search['top'].draw()
+            draw_objs.append(self.search['top'])
             self.search['bot'].lineColor = self.colors[
                 trial['search_colors'][1]]
-            self.search['bot'].draw()
-            self.line[('bot', 'straight')].draw()
+            draw_objs.append(self.search['bot'])
+            draw_objs.append(self.line[('bot', 'straight')])
         else:
             self.search['top'].lineColor = self.colors[
                 trial['search_colors'][1]]
-            self.search['top'].draw()
+            draw_objs.append(self.search['top'])
             self.search['bot'].lineColor = self.colors[
                 trial['search_colors'][0]]
-            self.search['bot'].draw()
-            self.line[('top', 'straight')].draw()
-        self.line[(trial['target_pos'], trial['target_type'])].draw()
+            draw_objs.append(self.search['bot'])
+            draw_objs.append(self.line[('top', 'straight')])
+        draw_objs.append(self.line[(trial['target_pos'], trial['target_type'])])
 
-        if not TESTING:
-            self.mark_event(2)
+        map(autoDraw_on, draw_objs)
         search_start = core.getTime()
         self.win.flip()
+        offset = self.mark_event(2)
         key = event.waitKeys(
-            maxWait=self.timing['search'], keyList=self.search_keymap.keys() + ['escape'])
+            maxWait=self.timing['search'] - offset, keyList=self.search_keymap.keys() + ['escape'])
         if key is None:
             pass
         elif key[0] == 'escape':
-            if not TESTING and self.plexon is not None:
+            if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
             core.quit()
         else:
-            if not TESTING:
-                self.mark_event(4)
-            resp_time = core.getTime()
+            map(autoDraw_off, draw_objs)
             self.win.flip()
+            self.win.flip()
+            resp_time = core.getTime()
+            offset = self.mark_event(4)
             return (self.search_keymap[key[0]], search_start, resp_time, resp_time)
+        map(autoDraw_off, draw_objs)
         off_time = core.getTime()
+        self.win.flip()
         self.win.flip()
         key = event.waitKeys(
             maxWait=self.timing['blank'], keyList=self.search_keymap.keys() + ['escape'])
         if key is None:
             return ('timeout', search_start, off_time, core.getTime())
         elif key[0] == 'escape':
-            if not TESTING and self.plexon is not None:
+            if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
             core.quit()
         else:
-            if not TESTING:
-                self.mark_event(4)
-            return (self.search_keymap[key[0]], search_start, off_time, core.getTime())
+            resp_time = core.getTime()
+            offset = self.mark_event(4)
+            return (self.search_keymap[key[0]], search_start, off_time, resp_time)
 
     def do_memory(self):
-        for stim in self.memory:
-            stim.draw()
-        if not TESTING:
-            self.mark_event(3)
+        map(autoDraw_on, self.memory)
         start_time = core.getTime()
         self.win.flip()
+        offset = self.mark_event(3)
         key = event.waitKeys(
-            maxWait=self.timing['WM'], keyList=self.mem_keymap.keys() + ['escape'])
+            maxWait=self.timing['WM'] - offset, keyList=self.mem_keymap.keys() + ['escape'])
+        map(autoDraw_off, self.memory)
+        self.win.flip()
         self.win.flip()
         if key is None:
             return ('timeout', start_time, core.getTime())
         elif key[0] == 'escape':
-            if not TESTING and self.plexon is not None:
+            if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
             core.quit()
         else:
-            if not TESTING:
-                self.mark_event(4)
-            return (self.mem_keymap[key[0]], start_time, core.getTime())
+            resp_time = core.getTime()
+            offset = self.mark_event(4)
+            return (self.mem_keymap[key[0]], start_time, resp_time)
 
     def text_keypress(self, text):
         display_text = visual.TextStim(self.win, text=text,
@@ -245,7 +301,7 @@ class Stimuli:
         self.win.flip()
         key = event.waitKeys()
         if key[0] == 'escape':
-            if not TESTING and self.plexon is not None:
+            if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
             core.quit()
         self.win.flip()
@@ -266,7 +322,8 @@ def get_settings():
     dlg.addField('Experiment Name:', 'WM_Search')
     dlg.addField('Subject ID:', '0000')
     dlg.addField('Number of blocks:', 10)
-    dlg.addField('Speed Factor', 1.0)
+    dlg.addField('Speed Factor:', 1.0)
+    dlg.addField('Event Marking Mode:', choices=('Plexon', 'NI-DAQ', 'Photodiode'))
     dlg.show()
     if dlg.OK:
         return dlg.data
@@ -279,9 +336,16 @@ def get_window():
         winType='pyglet', monitor="testMonitor", units="pix", screen=1,
         fullscr=True, colorSpace='rgb255', color=(0, 0, 0))
 
+def autoDraw_on(stim):
+    stim.autoDraw = True
+    return stim
+
+def autoDraw_off(stim):
+    stim.autoDraw = False
+    return stim
 
 def run():
-    (expname, sid, numblocks, speed) = get_settings()
+    (expname, sid, numblocks, speed, mode) = get_settings()
     win = get_window()
     win.flip()
     timing = {'fixation': 0.5,
@@ -295,7 +359,7 @@ def run():
               'green': (95, 180, 46),
               'blue': (48, 62, 152),
               'yellow': (251, 189, 18)}
-    stim = Stimuli(win, timing, colors)
+    stim = Stimuli(win, timing, colors, mode)
 
     stim.text_keypress('You will be presented with a circle which you will ' +
                        'need to remember the color of.\n\n\n'
@@ -349,8 +413,7 @@ def run():
         stim.draw_fixation()
         block['fixation_off'] = core.getTime()
         block['cue_on'] = core.getTime()
-        stim.draw_cue(block['cue_color'])
-        block['cue_off'] = core.getTime()
+        block['cue_off'] = stim.draw_cue(block['cue_color'])
         for trial_num in range(len(block['trials'])):
             trial = block['trials'][trial_num]
             resp, start_time, off_time, end_time = stim.do_search(trial)
