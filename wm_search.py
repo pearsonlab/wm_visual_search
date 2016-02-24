@@ -390,7 +390,7 @@ def run():
 
     stim.text_and_stim_keypress('First you will see a circle. Remember its color.',
                                 stim=stim.cue)
-    stim.text_and_stim_keypress('Afterward find the tilted line. Press 1 if the line is tilted left. Press 2 if the line is tilted right.',
+    stim.text_and_stim_keypress('Afterward, find the tilted line.\nPress 1 if the line is tilted left. Press 2 if the line is tilted right.',
                                 [stim.search['top'], stim.search['bot'],
                                  stim.line[('top', 'left')], stim.line[('bot', 'straight')]])
     stim.text_and_stim_keypress('At the end, we will ask you the color of the first circle you saw.', stim=stim.memory[1:])
