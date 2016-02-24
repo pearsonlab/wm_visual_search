@@ -28,7 +28,8 @@ class Stimuli:
                                         wrapWidth=2)
         self.cue = visual.Circle(self.win, units='height', radius=0.1,
                                  fillColorSpace='rgb255', lineColorSpace='rgb255',
-                                 fillColor=(0, 0, 0), pos=(0, 0), lineWidth=15)
+                                 fillColor=(0, 0, 0), pos=(0, 0), lineWidth=15,
+                                 lineColor=self.colors['blue'])
 
         self.search_keymap = {'1': 'left', '2': 'right'}
         self.search = {}
@@ -36,12 +37,14 @@ class Stimuli:
                                            fillColorSpace='rgb255',
                                            lineColorSpace='rgb255',
                                            fillColor=(0, 0, 0), pos=(0, 0.2),
-                                           lineWidth=15)
+                                           lineWidth=15,
+                                           lineColor=self.colors['red'])
         self.search['bot'] = visual.Circle(self.win, units='height', radius=0.1,
                                            fillColorSpace='rgb255',
                                            lineColorSpace='rgb255',
                                            fillColor=(0, 0, 0), pos=(0, -0.2),
-                                           lineWidth=15)
+                                           lineWidth=15,
+                                           lineColor=self.colors['green'])
         line_color = (255, 255, 255)
         self.line = {}
         self.line[('top', 'left')] = visual.Line(self.win, lineColor=line_color,
@@ -290,11 +293,16 @@ class Stimuli:
             offset = self.mark_event(4)
             return (self.mem_keymap[key[0]], start_time, resp_time)
 
-    def text_keypress(self, text):
+    def text_and_stim_keypress(self, text, stim=None):
+        if stim is not None:
+            if type(stim) == list:
+                map(lambda x: x.draw(), stim)
+            else:
+                stim.draw()
         display_text = visual.TextStim(self.win, text=text,
                                        font='Helvetica', alignHoriz='center',
                                        alignVert='center', units='norm',
-                                       pos=(0, 0), height=0.1,
+                                       pos=(0, -0.8), height=0.1,
                                        color=[255, 255, 255], colorSpace='rgb255',
                                        wrapWidth=2)
         display_text.draw()
@@ -361,17 +369,13 @@ def run():
               'yellow': (251, 189, 18)}
     stim = Stimuli(win, timing, colors, mode)
 
-    stim.text_keypress('You will be presented with a circle which you will ' +
-                       'need to remember the color of.\n\n\n'
-                       'Hit any key to continue.')
-    stim.text_keypress('Then you will be presented with a series of ' +
-                       'searches where you will need to press the key ' +
-                       'corresponding to the way the tilted line is tilted.\n\n\n'
-                       'Hit any key to continue.')
-    stim.text_keypress('At the end, you will be asked to pick the color ' +
-                       'that you were asked to remember out of four ' +
-                       'possibilities.\n\n\n'
-                       'Hit any key to continue.')
+    stim.text_and_stim_keypress('First you will see a circle. Remember its color.',
+                                stim=stim.cue)
+    stim.text_and_stim_keypress('Afterward find the tilted line. Press 1 if the line is tilted left. Press 2 if the line is tilted right.',
+                                [stim.search['top'], stim.search['bot'],
+                                 stim.line[('top', 'left')], stim.line[('bot', 'straight')]])
+    stim.text_and_stim_keypress('At the end, we will ask you the color of the first circle you saw.', stim=stim.memory[1:])
+    stim.text_and_stim_keypress('Press any key when ready to begin!')
     # the first color is the search target, second is the distractor
     trial_types = [('red', 'blue'), ('red', 'green'), ('red', 'yellow'),
                    ('blue', 'red'), ('blue', 'green'), ('blue', 'yellow'),
@@ -446,9 +450,9 @@ def run():
             f.write(json.dumps(block))
             f.write('\n')
         if block_num < len(block_list) - 1:
-            stim.text_keypress('Press any button when ready to continue.')
+            stim.text_and_stim_keypress('Press any button when ready to continue.')
         else:
-            stim.text_keypress('Congratulations! You have finished.')
+            stim.text_and_stim_keypress('Congratulations! You have finished.')
 
 if __name__ == '__main__':
     run()
