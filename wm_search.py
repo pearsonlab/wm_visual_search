@@ -162,10 +162,10 @@ class Stimuli:
         Send a binary signal (value) to the photodiode by flickering a white
         circle in the bottom right hand corner.
         """
-        circle = visual.Circle(self.win, units='norm', radius=0.05,
+        circle = visual.Circle(self.win, units='height', radius=0.1,
                                fillColorSpace='rgb255',
                                lineColorSpace='rgb255',
-                               fillColor=(0, 0, 0), pos=(0.95, -0.95),
+                               fillColor=(0, 0, 0), pos=(0.78, -0.4),
                                lineColor=(0, 0, 0))
         value = np.binary_repr(value)
         # zero pad to 8 bits and add stop and start bits
