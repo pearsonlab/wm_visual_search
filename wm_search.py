@@ -20,6 +20,7 @@ class Stimuli:
         self.timing = timing
         self.colors = colors
         self.mode = mode
+        self.calib_seq = [201, 251, 101, 151, 51, 1]
         self.fixation = visual.TextStim(self.win, text='+',
                                         alignHoriz='center',
                                         alignVert='center', units='norm',
@@ -144,6 +145,20 @@ class Stimuli:
             # channel 3: WM presentation
             # channel 4: Subject response
 
+    def mark_task(self, mode):
+        """
+        Flickers sequence to identify beginning or end of each task
+        """
+        if self.mode == 'Photodiode':
+            if mode == 'begin':
+                for val in self.calib_seq:
+                    self.mark_event(val)
+            elif mode == 'end':
+                for val in reversed(self.calib_seq):
+                    self.mark_event(val)
+            else:
+                print "mark_task: Mode not recognized"
+
     def mark_event(self, channel):
         """
         Mark event using the predetermined method. Return time it took to run
@@ -247,6 +262,7 @@ class Stimuli:
         elif key[0] == 'escape':
             if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
+            self.mark_task('end')
             core.quit()
         else:
             map(autoDraw_off, draw_objs)
@@ -266,6 +282,7 @@ class Stimuli:
         elif key[0] == 'escape':
             if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
+            self.mark_task('end')
             core.quit()
         else:
             resp_time = core.getTime()
@@ -287,6 +304,7 @@ class Stimuli:
         elif key[0] == 'escape':
             if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
+            self.mark_task('end')
             core.quit()
         else:
             resp_time = core.getTime()
@@ -311,6 +329,7 @@ class Stimuli:
         if key[0] == 'escape':
             if not TESTING and self.mode == 'Plexon':
                 self.plexon.CloseClient()
+            self.mark_task('end')
             core.quit()
         self.win.flip()
 
@@ -329,7 +348,7 @@ def get_settings():
     dlg = gui.Dlg(title='Choose Settings')
     dlg.addField('Experiment Name:', 'WM_Search')
     dlg.addField('Subject ID:', '0000')
-    dlg.addField('Number of blocks:', 10)
+    dlg.addField('Number of blocks:', 999)
     dlg.addField('Speed Factor:', 1.0)
     dlg.addField('Event Marking Mode:', choices=('Plexon', 'NI-DAQ', 'Photodiode'))
     dlg.show()
@@ -409,6 +428,10 @@ def run():
             trial_list.append(trial)
         block['trials'] = trial_list
         block_list.append(block)
+
+    # sequence to mark beginning of trial
+    stim.mark_task('begin')
+    core.wait(1.0)
 
     # run trials
     for block_num in range(len(block_list)):
