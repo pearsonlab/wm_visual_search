@@ -168,7 +168,7 @@ class Stimuli:
         circle = visual.Circle(self.win, units='height', radius=0.1,
                                fillColorSpace='rgb255',
                                lineColorSpace='rgb255',
-                               fillColor=(0, 0, 0), pos=(0.78, -0.4),
+                               fillColor=(0, 0, 0), pos=(0.7, -0.4),
                                lineColor=(0, 0, 0))
         value = np.binary_repr(value)
         # zero pad to 8 bits and add stop and start bits
@@ -371,7 +371,7 @@ def run():
 
     stim.text_and_stim_keypress('First you will see a circle. Remember its color.',
                                 stim=stim.cue)
-    stim.text_and_stim_keypress('Afterward find the tilted line. Press 1 if the line is tilted left. Press 2 if the line is tilted right.',
+    stim.text_and_stim_keypress('Afterward, find the tilted line.\nPress 1 if the line is tilted left. Press 2 if the line is tilted right.',
                                 [stim.search['top'], stim.search['bot'],
                                  stim.line[('top', 'left')], stim.line[('bot', 'straight')]])
     stim.text_and_stim_keypress('At the end, we will ask you the color of the first circle you saw.', stim=stim.memory[1:])
