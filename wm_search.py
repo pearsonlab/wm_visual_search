@@ -342,7 +342,7 @@ class Stimuli:
             offset = self.mark_event(4)
             return (self.mem_keymap[key], start_time, resp_time)
 
-    def text_and_stim_keypress(self, text, stim=None):
+    def text_and_stim_keypress(self, text, stim=None, max_wait=float('inf')):
         if stim is not None:
             if type(stim) == list:
                 map(lambda x: x.draw(), stim)
@@ -356,9 +356,10 @@ class Stimuli:
                                        wrapWidth=2)
         display_text.draw()
         self.win.flip()
-        key = event.waitKeys()
-        if key[0] == 'escape':
-            self.close()
+        key = event.waitKeys(maxWait=max_wait)
+        if key is not None:
+            if key[0] == 'escape':
+                self.close()
         self.win.flip()
 
     def text(self, text):
@@ -502,10 +503,10 @@ def run():
             f.write(json.dumps(block))
             f.write('\n')
         if block_num < len(block_list) - 1:
-            stim.text_and_stim_keypress('Press any button when ready to continue.\n' +
-                                        'Press escape to quit.')
+            stim.text_and_stim_keypress('Press escape to quit.', max_wait=2.0)
         else:
-            stim.text_and_stim_keypress('Congratulations! You have finished.')
+            stim.text_and_stim_keypress('Congratulations! You have finished.',
+                                        max_wait=2.0)
     stim.close()
 
 if __name__ == '__main__':
