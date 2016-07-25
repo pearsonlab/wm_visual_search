@@ -3,6 +3,15 @@ import json
 from psychopy import visual, gui, event, core
 import random
 import numpy as np
+import os.path
+RT_path = os.path.expanduser('~/Documents/RTBox-Python/RTBox_python/')
+if os.path.exists(RT_path):
+    RTBOXLIB_EXISTS = True
+    sys.path.append(RT_path)
+    from RTBox import RTBox
+else:
+    RTBOXLIB_EXISTS = False
+    print "RTBox drivers not available on machine."
 
 TESTING = False  # turns off event marking
 if not TESTING:
@@ -15,11 +24,19 @@ if not TESTING:
 
 class Stimuli:
 
-    def __init__(self, win, timing, colors, mode):
+    def __init__(self, win, timing, colors, mark_mode, input_mode):
         self.win = win
         self.timing = timing
         self.colors = colors
-        self.mode = mode
+        self.mark_mode = mark_mode
+        self.input_mode = input_mode
+        if self.input_mode == 'RTBox':
+            if RTBOXLIB_EXISTS:
+                self.RTBox = RTBox()
+                self.RTBox.prep()
+            else:
+                print "RTBox drivers not found, defaulting to keyboard"
+                self.input_mode = "Keyboard"
         self.calib_seq = [201, 251, 101, 151, 51, 1]
         self.fixation = visual.TextStim(self.win, text='+',
                                         alignHoriz='center',
@@ -32,7 +49,7 @@ class Stimuli:
                                  fillColor=(0, 0, 0), pos=(0, 0), lineWidth=15,
                                  lineColor=self.colors['blue'])
 
-        self.search_keymap = {'1': 'left', '2': 'right'}
+        self.search_keymap = {'1': 'left', '2': 'right', '3': 'invalid', '4': 'invalid'}
         self.search = {}
         self.search['top'] = visual.Circle(self.win, units='height', radius=0.1,
                                            fillColorSpace='rgb255',
@@ -127,15 +144,15 @@ class Stimuli:
                                            pos=(0.45, 0), height=0.1,
                                            color=[255, 255, 255], colorSpace='rgb255'))
         if not TESTING:
-            if self.mode == 'Plexon':
+            if self.mark_mode == 'Plexon':
                 self.plexon = PlexClient.PlexClient()
                 self.plexon.InitClient()
                 if not self.plexon.IsSortClientRunning():
                     raise Exception('Please start Sort Client to use Plexon.')
                 print 'Using Plexon'
-            elif self.mode == 'NI-DAQ':
+            elif self.mark_mode == 'NI-DAQ':
                 print 'Using NI-DAQ'
-            elif self.mode == 'Photodiode':
+            elif self.mark_mode == 'Photodiode':
                 print 'Using Photodiode'
             else:
                 raise Exception('Event marking mode unknown')
@@ -145,19 +162,45 @@ class Stimuli:
             # channel 3: WM presentation
             # channel 4: Subject response
 
-    def mark_task(self, mode):
+    def close(self):
+        if not TESTING and self.mark_mode == 'Plexon':
+            self.plexon.CloseClient()
+        if self.input_mode == 'RTBox':
+            self.RTBox.close()
+        self.mark_task('end')
+        core.quit()
+
+    def mark_task(self, status):
         """
         Flickers sequence to identify beginning or end of each task
         """
-        if self.mode == 'Photodiode':
-            if mode == 'begin':
+        if self.mark_mode == 'Photodiode':
+            if status == 'begin':
                 for val in self.calib_seq:
                     self.mark_event(val)
-            elif mode == 'end':
+            elif status == 'end':
                 for val in reversed(self.calib_seq):
                     self.mark_event(val)
             else:
-                print "mark_task: Mode not recognized"
+                print "mark_task: Status type not recognized"
+
+    def get_input(self, max_wait=1.0, keylist=None):
+        if self.input_mode == 'Keyboard':
+            key = event.waitKeys(maxWait=max_wait, keyList=keylist)
+            if key is not None:
+                key = key[0]
+            time = core.getTime()
+        elif self.input_mode == 'RTBox':
+            event_type, time = self.RTBox.wait_press(secs=max_wait)
+            if event_type is not None:
+                key = event_type[0]
+            else:
+                key = None
+        else:
+            raise Exception("Unrecognized input mode")
+
+        return (key, time)
+
 
     def mark_event(self, channel):
         """
@@ -166,12 +209,12 @@ class Stimuli:
         """
         timer = core.Clock()
         if not TESTING:
-            if self.mode == 'Plexon':
+            if self.mark_mode == 'Plexon':
                 self.plexon.MarkEvent(channel)
-            elif self.mode == 'NI-DAQ':
+            elif self.mark_mode == 'NI-DAQ':
                 if channel == 2 or channel == 3:
                     makepulse()
-            elif self.mode == 'Photodiode':
+            elif self.mark_mode == 'Photodiode':
                 self.flicker(channel)
         return timer.getTime()
 
@@ -255,61 +298,49 @@ class Stimuli:
         search_start = core.getTime()
         self.win.flip()
         offset = self.mark_event(2)
-        key = event.waitKeys(
-            maxWait=self.timing['search'] - offset, keyList=self.search_keymap.keys() + ['escape'])
+        key, resp_time = self.get_input(max_wait=self.timing['search'] - offset,
+                                        keylist=self.search_keymap.keys() + ['escape'])
         if key is None:
             pass
-        elif key[0] == 'escape':
-            if not TESTING and self.mode == 'Plexon':
-                self.plexon.CloseClient()
-            self.mark_task('end')
-            core.quit()
+        elif key == 'escape':
+            self.close()
         else:
             map(autoDraw_off, draw_objs)
             self.win.flip()
             self.win.flip()
-            resp_time = core.getTime()
             offset = self.mark_event(4)
-            return (self.search_keymap[key[0]], search_start, resp_time, resp_time)
+            return (self.search_keymap[key], search_start, resp_time, resp_time)
         map(autoDraw_off, draw_objs)
         off_time = core.getTime()
         self.win.flip()
         self.win.flip()
-        key = event.waitKeys(
-            maxWait=self.timing['blank'], keyList=self.search_keymap.keys() + ['escape'])
+        key, resp_time = self.get_input(max_wait=self.timing['blank'],
+                                        keylist=self.search_keymap.keys() + ['escape'])
         if key is None:
-            return ('timeout', search_start, off_time, core.getTime())
-        elif key[0] == 'escape':
-            if not TESTING and self.mode == 'Plexon':
-                self.plexon.CloseClient()
-            self.mark_task('end')
-            core.quit()
+            return ('timeout', search_start, off_time, resp_time)
+        elif key == 'escape':
+            self.close()
         else:
-            resp_time = core.getTime()
             offset = self.mark_event(4)
-            return (self.search_keymap[key[0]], search_start, off_time, resp_time)
+            return (self.search_keymap[key], search_start, off_time, resp_time)
 
     def do_memory(self):
         map(autoDraw_on, self.memory)
         start_time = core.getTime()
         self.win.flip()
         offset = self.mark_event(3)
-        key = event.waitKeys(
-            maxWait=self.timing['WM'] - offset, keyList=self.mem_keymap.keys() + ['escape'])
+        key, resp_time = self.get_input(max_wait=self.timing['WM'] - offset,
+                                        keylist=self.mem_keymap.keys() + ['escape'])
         map(autoDraw_off, self.memory)
         self.win.flip()
         self.win.flip()
         if key is None:
-            return ('timeout', start_time, core.getTime())
-        elif key[0] == 'escape':
-            if not TESTING and self.mode == 'Plexon':
-                self.plexon.CloseClient()
-            self.mark_task('end')
-            core.quit()
+            return ('timeout', start_time, resp_time)
+        elif key == 'escape':
+            self.close()
         else:
-            resp_time = core.getTime()
             offset = self.mark_event(4)
-            return (self.mem_keymap[key[0]], start_time, resp_time)
+            return (self.mem_keymap[key], start_time, resp_time)
 
     def text_and_stim_keypress(self, text, stim=None):
         if stim is not None:
@@ -327,10 +358,7 @@ class Stimuli:
         self.win.flip()
         key = event.waitKeys()
         if key[0] == 'escape':
-            if not TESTING and self.mode == 'Plexon':
-                self.plexon.CloseClient()
-            self.mark_task('end')
-            core.quit()
+            self.close()
         self.win.flip()
 
     def text(self, text):
@@ -350,7 +378,8 @@ def get_settings():
     dlg.addField('Subject ID:', '0000')
     dlg.addField('Number of blocks:', 999)
     dlg.addField('Speed Factor:', 1.0)
-    dlg.addField('Event Marking Mode:', choices=('Plexon', 'NI-DAQ', 'Photodiode'))
+    dlg.addField('Event Marking Mode:', choices=('Photodiode', 'Plexon', 'NI-DAQ'))
+    dlg.addField('Input Mode:', choices=('RTBox', 'Keyboard'))
     dlg.show()
     if dlg.OK:
         return dlg.data
@@ -372,7 +401,7 @@ def autoDraw_off(stim):
     return stim
 
 def run():
-    (expname, sid, numblocks, speed, mode) = get_settings()
+    (expname, sid, numblocks, speed, mark_mode, input_mode) = get_settings()
     win = get_window()
     win.flip()
     timing = {'fixation': 0.5,
@@ -386,7 +415,7 @@ def run():
               'green': (95, 180, 46),
               'blue': (48, 62, 152),
               'yellow': (251, 189, 18)}
-    stim = Stimuli(win, timing, colors, mode)
+    stim = Stimuli(win, timing, colors, mark_mode, input_mode)
 
     stim.text_and_stim_keypress('First you will see a circle. Remember its color.',
                                 stim=stim.cue)
@@ -473,9 +502,11 @@ def run():
             f.write(json.dumps(block))
             f.write('\n')
         if block_num < len(block_list) - 1:
-            stim.text_and_stim_keypress('Press any button when ready to continue.')
+            stim.text_and_stim_keypress('Press any button when ready to continue.\n' +
+                                        'Press escape to quit.')
         else:
             stim.text_and_stim_keypress('Congratulations! You have finished.')
+    stim.close()
 
 if __name__ == '__main__':
     run()
